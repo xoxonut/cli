@@ -105,8 +105,7 @@ func GetBeginTransactionRequest(account_id string, amount int64, txn_id int64) (
 
 func BeginTXN(wg *sync.WaitGroup, client *twopcserver.TwoPhaseCommitServiceClient, req *twopcserver.BeginTransactionRequest, ch *chan bool) {
 	defer wg.Done()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.TODO()
 	res, err := (*client).BeginTransaction(ctx, req)
 	if err != nil {
 		fmt.Println("begin transaction error:", err)
@@ -127,8 +126,7 @@ func GetCommitRequest(account_id string, txn_id int64) (*twopcserver.CommitReque
 
 func CommitTXN(wg *sync.WaitGroup, client *twopcserver.TwoPhaseCommitServiceClient, req *twopcserver.CommitRequest) {
 	defer wg.Done()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.TODO()
 	res, err := (*client).Commit(ctx, req)
 	if err != nil {
 		fmt.Println("commit transaction error:", err)
@@ -146,8 +144,7 @@ func GetAbortRequest(account_id string, txn_id int64) (*twopcserver.AbortRequest
 }
 func AbortTXN(wg *sync.WaitGroup, client *twopcserver.TwoPhaseCommitServiceClient, req *twopcserver.AbortRequest) {
 	defer wg.Done()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.TODO()
 	res, err := (*client).Abort(ctx, req)
 	if err != nil {
 		fmt.Println("abort transaction error:", err)
@@ -176,8 +173,7 @@ func main() {
 	}
 	defer couchDB_conn.Close()
 	couchDB_client := twopcserver.NewTwoPhaseCommitServiceClient(couchDB_conn)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
+	ctx := context.TODO()
 
 	arg_nums := len(os.Args)
 	s := os.Args[1]
@@ -306,6 +302,7 @@ func main() {
 			fmt.Println("get request error:", err)
 			return
 		}
+		rand.Seed(time.Now().UnixNano())
 		txn_id := rand.Int63()
 		if txn_id < 0 {
 			txn_id = -txn_id
@@ -374,6 +371,7 @@ func main() {
 			fmt.Println("get request error:", err)
 			return
 		}
+		rand.Seed(time.Now().UnixNano())
 		txn_id := rand.Int63()
 		if txn_id < 0 {
 			txn_id = -txn_id
