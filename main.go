@@ -169,11 +169,11 @@ func executor(in string) {
 		allTrue := checkAllTrue(ch)
 		close(ch)
 		if allTrue {
-			giver_commit_req, err := util.GetCommitRequest(giver_id)
+			giver_commit_req, err := util.GetCommitRequest(giver_id, "-"+amount)
 			if err != nil {
 				fmt.Println("Invalid giver data")
 			}
-			receiver_commit_req, err := util.GetCommitRequest(receiver_id)
+			receiver_commit_req, err := util.GetCommitRequest(receiver_id, amount)
 			if err != nil {
 				fmt.Println("Invalid receiver data")
 			}

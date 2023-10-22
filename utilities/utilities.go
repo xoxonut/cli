@@ -87,7 +87,7 @@ func GetBeginTransactionRequest(account_id string, amount string) (*twopcserver.
 		return nil, err
 	}
 	a, err := strconv.ParseInt(amount, 10, 32)
-
+	fmt.Println("amount:", a)
 	if err != nil {
 		return nil, err
 	}
@@ -107,12 +107,16 @@ func BeginTXN(wg *sync.WaitGroup, client *twopcserver.TwoPhaseCommitServiceClien
 	fmt.Println(res)
 	*ch <- true
 }
-func GetCommitRequest(account_id string) (*twopcserver.CommitRequest, error) {
+func GetCommitRequest(account_id string, amount string) (*twopcserver.CommitRequest, error) {
 	id, err := strconv.ParseInt(account_id, 10, 32)
 	if err != nil {
 		return nil, err
 	}
-	request := twopcserver.CommitRequest{AccountId: int32(id)}
+	a, err := strconv.ParseInt(amount, 10, 32)
+	if err != nil {
+		return nil, err
+	}
+	request := twopcserver.CommitRequest{AccountId: int32(id), Amount: int32(a)}
 	return &request, nil
 }
 
