@@ -227,7 +227,7 @@ func executor(in string) {
 			fmt.Println("Invalid rps")
 			return
 		}
-		study.Test(float64(rps))
+		study.Test(rps)
 
 	default:
 		fmt.Println("Invalid command")
