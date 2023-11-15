@@ -3,13 +3,15 @@ module Twopc-cli
 go 1.18
 
 require (
+	github.com/c-bata/go-prompt v0.2.6
 	github.com/golang/protobuf v1.5.3
+	github.com/google/uuid v1.3.0
+	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.58.2
 	google.golang.org/protobuf v1.31.0
 )
 
 require (
-	github.com/c-bata/go-prompt v0.2.6 // indirect
 	github.com/mattn/go-colorable v0.1.7 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect

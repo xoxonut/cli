@@ -18,6 +18,7 @@ const (
 	DELETE
 	SEND
 	RESET
+	TEST
 )
 
 func Str2op(str string) operation {
@@ -36,6 +37,8 @@ func Str2op(str string) operation {
 		return SEND
 	case "reset":
 		return RESET
+	case "test":
+		return TEST
 	default:
 		return -1
 	}
@@ -46,16 +49,19 @@ func GetCreateAccountRequest(arg string) (*twopcserver.CreateAccountRequest, err
 	if err != nil {
 		return nil, err
 	}
-	request := twopcserver.CreateAccountRequest{AccountId: int32(id)}
+	out := int32(id)
+	fmt.Println("out:", out)
+	request := twopcserver.CreateAccountRequest{AccountId: out}
 	return &request, nil
 }
 
 func GetReadAccountRequest(arg string) (*twopcserver.ReadAccountRequest, error) {
 	id, err := strconv.ParseInt(arg, 10, 32)
+	out := int32(id)
 	if err != nil {
 		return nil, err
 	}
-	request := twopcserver.ReadAccountRequest{AccountId: int32(id)}
+	request := twopcserver.ReadAccountRequest{AccountId: out}
 	return &request, nil
 }
 
@@ -91,6 +97,7 @@ func GetBeginTransactionRequest(account_id string, amount string) (*twopcserver.
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("id:", id)
 	request := twopcserver.BeginTransactionRequest{AccountId: int32(id), Amount: int32(a)}
 	return &request, nil
 }

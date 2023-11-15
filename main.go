@@ -3,17 +3,18 @@ package main
 import (
 	"Twopc-cli/ipconfig"
 	ui "Twopc-cli/prompt-ui"
+	"Twopc-cli/study"
 	"Twopc-cli/twopcserver"
 	util "Twopc-cli/utilities"
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/c-bata/go-prompt"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var kafka_client twopcserver.TwoPhaseCommitServiceClient
@@ -93,7 +94,7 @@ func executor(in string) {
 		amount := blocks[3]
 		req, err := util.GetUpdateAccountRequest(account_id, amount)
 		if err != nil {
-			fmt.Println("Invalid account id")
+			fmt.Println("Invalid account id", err)
 			return
 		}
 		if blocks[1] == "kafka" {
@@ -140,6 +141,7 @@ func executor(in string) {
 		var receiver_cli *twopcserver.TwoPhaseCommitServiceClient
 		giver_id := blocks[2]
 		receiver_id := blocks[4]
+		fmt.Println(giver_id, receiver_id)
 		amount := blocks[5]
 		if blocks[1] == "kafka" {
 			giver_cli = &kafka_client
@@ -197,24 +199,38 @@ func executor(in string) {
 		}
 		return
 	case util.RESET:
-		if len(blocks) != 2 {
-			fmt.Println("Invalid reset command")
-			return
-		}
-		if blocks[1] == "kafka" {
-			cli = &kafka_client
-		} else {
-			cli = &couchDB_client
-		}
-		res, err := (*cli).Reset(context.Background(), &emptypb.Empty{})
-		if err != nil {
-			fmt.Println("Reset error:", err)
-		} else {
-			fmt.Println("Reset success:", res)
+		// if len(blocks) != 1 {
+		// 	fmt.Println("Invalid reset command")
+		// 	return
+		// }
+		// _, err := kafka_client.Reset(context.Background(), &emptypb.Empty{})
+		// if err != nil {
+		// 	fmt.Println("Reset kafka error:", err)
+		// }
+		// _, err = couchDB_client.Reset(context.Background(), &emptypb.Empty{})
+		// if err != nil {
+		// 	fmt.Println("Reset couchDB error:", err)
+		// }
+		for i := 0; i < 10000; i++ {
+			req, _ := util.GetCreateAccountRequest(strconv.Itoa(i + 1))
+			kafka_client.CreateAccount(context.Background(), req)
+			// couchDB_client.CreateAccount(context.Background(), req)
 		}
 		return
+	case util.TEST:
+		if len(blocks) != 2 {
+			fmt.Println("Invalid test command")
+			return
+		}
+		rps, err := strconv.Atoi(blocks[1])
+		if err != nil {
+			fmt.Println("Invalid rps")
+			return
+		}
+		study.Test(float64(rps))
+
 	default:
-		fmt.Println("Invalid operation")
+		fmt.Println("Invalid command")
 		return
 	}
 }
@@ -231,7 +247,7 @@ func main() {
 	}
 	defer kafka_conn.Close()
 	kafka_client = twopcserver.NewTwoPhaseCommitServiceClient(kafka_conn)
-	couchDB_conn, err := grpc.Dial(ip.Kafka_ip, grpc.WithInsecure())
+	couchDB_conn, err := grpc.Dial(ip.CouchDB_ip, grpc.WithInsecure())
 	couchDB_client = twopcserver.NewTwoPhaseCommitServiceClient(couchDB_conn)
 	if err != nil {
 		fmt.Println("dial couchDB error:", err)
@@ -245,5 +261,5 @@ func main() {
 		prompt.OptionTitle("2PC CLI"),
 	)
 	p.Run()
-
+	// study.Test(10)
 }
