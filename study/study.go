@@ -5,7 +5,10 @@ import (
 	"Twopc-cli/twopcserver"
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -71,6 +74,7 @@ func abort(cli *twopcserver.TwoPhaseCommitServiceClient, id int, amount int, uui
 func txn(giver_cli *twopcserver.TwoPhaseCommitServiceClient, receiver_cli *twopcserver.TwoPhaseCommitServiceClient,
 	gid int, rid int, amount int, wg *sync.WaitGroup) {
 	defer wg.Done()
+	s := time.Now()
 	uuid := uuid.New().String()
 	ch := make(chan bool, 2)
 	defer close(ch)
@@ -82,14 +86,15 @@ func txn(giver_cli *twopcserver.TwoPhaseCommitServiceClient, receiver_cli *twopc
 	inner_wg.Add(2)
 	if (<-ch) && (<-ch) {
 		//commit
-		go commit(giver_cli, gid, -amount, uuid, inner_wg)
+		go commit(giver_cli, gid, amount, uuid, inner_wg)
 		go commit(receiver_cli, rid, amount, uuid, inner_wg)
 	} else {
 		//abort
-		go abort(giver_cli, gid, -amount, uuid, inner_wg)
+		go abort(giver_cli, gid, amount, uuid, inner_wg)
 		go abort(receiver_cli, rid, amount, uuid, inner_wg)
 	}
 	inner_wg.Wait()
+	AVG = append(AVG, time.Since(s).Seconds())
 }
 func Test(lim int) {
 	initClients()
@@ -98,6 +103,7 @@ func Test(lim int) {
 	cli := [2]*twopcserver.TwoPhaseCommitServiceClient{&kafka_client, &couchDB_client}
 	lim *= 60
 	wg := &sync.WaitGroup{}
+	AVG = make([]float64, 0, lim)
 	s := time.Now()
 	for i := 0; i < lim; i++ {
 		limiter.Wait(context.Background())
@@ -110,5 +116,14 @@ func Test(lim int) {
 		go txn(give, receive, gid, rid, amount, wg)
 	}
 	wg.Wait()
-	fmt.Println("time: ", time.Since(s))
+	logger.Println(lim/60, "rps: ", float64(lim)/time.Since(s).Seconds())
+	sum := 0.0
+	for _, v := range AVG {
+		sum += v
+	}
+	logger.Println(lim/60, "avg: ", sum/float64(len(AVG)))
 }
+
+var AVG []float64
+var f, _ = os.OpenFile("record.txt", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+var logger = log.New(io.Writer(f), "", 0)
