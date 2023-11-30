@@ -109,16 +109,15 @@ func Test(lim int) {
 	cnt := 0
 	time.Sleep(time.Second)
 	for time.Now().Before(e) {
-		if limiter.Allow() {
-			give := cli[rand.Intn(2)]
-			receive := cli[rand.Intn(2)]
-			gid := rand.Intn(10000) + 1
-			rid := rand.Intn(10000) + 1
-			amount := rand.Intn(5) + 1
-			wg.Add(1)
-			cnt++
-			go txn(give, receive, gid, rid, amount, wg)
-		}
+		limiter.Wait(context.Background())
+		give := cli[rand.Intn(2)]
+		receive := cli[rand.Intn(2)]
+		gid := rand.Intn(10000) + 1
+		rid := rand.Intn(10000) + 1
+		amount := rand.Intn(5) + 1
+		wg.Add(1)
+		cnt++
+		go txn(give, receive, gid, rid, amount, wg)
 	}
 	wg.Wait()
 	fin := time.Now()
