@@ -80,20 +80,21 @@ func txn(giver_cli *twopcserver.TwoPhaseCommitServiceClient, receiver_cli *twopc
 	defer close(ch)
 	inner_wg := &sync.WaitGroup{}
 	inner_wg.Add(2)
-	go preCommit(giver_cli, gid, amount, uuid, inner_wg, &ch)
+	go preCommit(giver_cli, gid, -amount, uuid, inner_wg, &ch)
 	go preCommit(receiver_cli, rid, amount, uuid, inner_wg, &ch)
 	inner_wg.Wait()
 	inner_wg.Add(2)
 	if (<-ch) && (<-ch) {
 		//commit
-		go commit(giver_cli, gid, amount, uuid, inner_wg)
+		go commit(giver_cli, gid, -amount, uuid, inner_wg)
 		go commit(receiver_cli, rid, amount, uuid, inner_wg)
 	} else {
 		//abort
-		go abort(giver_cli, gid, amount, uuid, inner_wg)
+		go abort(giver_cli, gid, -amount, uuid, inner_wg)
 		go abort(receiver_cli, rid, amount, uuid, inner_wg)
 	}
 	inner_wg.Wait()
+	// time.Sleep(time.Minute)
 	AVG = append(AVG, time.Since(s).Seconds())
 }
 func Test(lim int) {
@@ -101,27 +102,34 @@ func Test(lim int) {
 	limiter := rate.NewLimiter(rate.Limit(lim), lim)
 	rand.Seed(time.Now().UnixNano())
 	cli := [2]*twopcserver.TwoPhaseCommitServiceClient{&kafka_client, &couchDB_client}
-	lim *= 60
 	wg := &sync.WaitGroup{}
 	AVG = make([]float64, 0, lim)
 	s := time.Now()
-	for i := 0; i < lim; i++ {
-		limiter.Wait(context.Background())
-		give := cli[rand.Intn(2)]
-		receive := cli[rand.Intn(2)]
-		gid := rand.Intn(10000) + 1
-		rid := rand.Intn(10000) + 1
-		amount := rand.Intn(5) + 1
-		wg.Add(1)
-		go txn(give, receive, gid, rid, amount, wg)
+	e := s.Add(time.Minute)
+	cnt := 0
+	time.Sleep(time.Second)
+	for time.Now().Before(e) {
+		if limiter.Allow() {
+			give := cli[rand.Intn(2)]
+			receive := cli[rand.Intn(2)]
+			gid := rand.Intn(10000) + 1
+			rid := rand.Intn(10000) + 1
+			amount := rand.Intn(5) + 1
+			wg.Add(1)
+			cnt++
+			go txn(give, receive, gid, rid, amount, wg)
+		}
 	}
 	wg.Wait()
-	logger.Println(lim/60, "rps: ", float64(lim)/time.Since(s).Seconds())
+	fin := time.Now()
+	logger.Println(lim, "cnt: ", cnt)
+	logger.Println(lim, "rps: ", float64(cnt)/time.Minute.Seconds())
+	logger.Println(lim, "tps: ", float64(cnt)/fin.Sub(s).Seconds())
 	sum := 0.0
 	for _, v := range AVG {
 		sum += v
 	}
-	logger.Println(lim/60, "avg: ", sum/float64(len(AVG)))
+	logger.Println(lim, "avg: ", sum/float64(len(AVG)))
 }
 
 var AVG []float64
