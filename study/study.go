@@ -22,6 +22,8 @@ var couchDB_conn *grpc.ClientConn
 var kafka_conn *grpc.ClientConn
 var couchDB_client twopcserver.TwoPhaseCommitServiceClient
 var kafka_client twopcserver.TwoPhaseCommitServiceClient
+var s = time.Now()
+var e = s.Add(time.Minute)
 
 func initClients() {
 	ip, err := ipconfig.GetIPs()
@@ -74,7 +76,7 @@ func abort(cli *twopcserver.TwoPhaseCommitServiceClient, id int, amount int, uui
 func txn(giver_cli *twopcserver.TwoPhaseCommitServiceClient, receiver_cli *twopcserver.TwoPhaseCommitServiceClient,
 	gid int, rid int, amount int, wg *sync.WaitGroup) {
 	defer wg.Done()
-	s := time.Now()
+	n := time.Now()
 	uuid := uuid.New().String()
 	ch := make(chan bool, 2)
 	defer close(ch)
@@ -86,48 +88,51 @@ func txn(giver_cli *twopcserver.TwoPhaseCommitServiceClient, receiver_cli *twopc
 	inner_wg.Add(2)
 	if (<-ch) && (<-ch) {
 		//commit
-		go commit(giver_cli, gid, -amount, uuid, inner_wg)
+		// fmt.Println("commit")
+		go commit(giver_cli, gid, amount, uuid, inner_wg)
 		go commit(receiver_cli, rid, amount, uuid, inner_wg)
 	} else {
 		//abort
-		go abort(giver_cli, gid, -amount, uuid, inner_wg)
+		// fmt.Println("abort")
+		go abort(giver_cli, gid, amount, uuid, inner_wg)
 		go abort(receiver_cli, rid, amount, uuid, inner_wg)
 	}
 	inner_wg.Wait()
-	// time.Sleep(time.Minute)
-	AVG = append(AVG, time.Since(s).Seconds())
+	if time.Now().Before(e) {
+		AVG = append(AVG, time.Since(n).Seconds())
+	}
 }
 func Test(lim int) {
 	initClients()
 	limiter := rate.NewLimiter(rate.Limit(lim), lim)
 	rand.Seed(time.Now().UnixNano())
-	cli := [2]*twopcserver.TwoPhaseCommitServiceClient{&kafka_client, &couchDB_client}
 	wg := &sync.WaitGroup{}
 	AVG = make([]float64, 0, lim)
-	s := time.Now()
-	e := s.Add(time.Minute)
+	s = time.Now()
+	e = s.Add(time.Minute)
 	cnt := 0
 	time.Sleep(time.Second)
 	for time.Now().Before(e) {
 		limiter.Wait(context.Background())
-		give := cli[rand.Intn(2)]
-		receive := cli[rand.Intn(2)]
 		gid := rand.Intn(10000) + 1
 		rid := rand.Intn(10000) + 1
-		amount := rand.Intn(5) + 1
 		wg.Add(1)
 		cnt++
-		go txn(give, receive, gid, rid, amount, wg)
+		go txn(&kafka_client, &couchDB_client, gid, rid, 1, wg)
 	}
+	// fin := time.Now()
 	wg.Wait()
-	fin := time.Now()
-	logger.Println(lim, "cnt: ", cnt)
 	logger.Println(lim, "rps: ", float64(cnt)/time.Minute.Seconds())
-	logger.Println(lim, "tps: ", float64(cnt)/fin.Sub(s).Seconds())
+	logger.Println(lim, "tps: ", float64(len(AVG))/time.Minute.Seconds())
 	sum := 0.0
+	max := 0.0
 	for _, v := range AVG {
 		sum += v
+		if v > max {
+			max = v
+		}
 	}
+	logger.Println(lim, "max: ", max)
 	logger.Println(lim, "avg: ", sum/float64(len(AVG)))
 }
 
