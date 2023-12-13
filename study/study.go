@@ -43,22 +43,24 @@ func initClients() {
 	}
 }
 
-func preCommit(cli *twopcserver.TwoPhaseCommitServiceClient, id int, amount int, uuid string,
-	wg *sync.WaitGroup, ch *chan bool) {
-	defer wg.Done()
+func preCommit(cli *twopcserver.TwoPhaseCommitServiceClient, id int, amount int, uuid string) bool {
+
 	req := twopcserver.BeginTransactionRequest{AccountId: int32(id), Amount: int32(amount), Uuid: uuid}
-	_, err := (*cli).BeginTransaction(context.Background(), &req)
-	if err != nil {
-		fmt.Println("preCommit error:", err)
-		*ch <- false
-		return
+	ctx, cancel := context.WithDeadline(context.Background(), e)
+	defer cancel()
+	if _, err := (*cli).BeginTransaction(ctx, &req); err != nil {
+		return false
+	} else {
+		return true
 	}
-	*ch <- true
+
 }
 func commit(cli *twopcserver.TwoPhaseCommitServiceClient, id int, amount int, uuid string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	req := twopcserver.CommitRequest{AccountId: int32(id), Amount: int32(amount), Uuid: uuid}
-	_, err := (*cli).Commit(context.Background(), &req)
+	ctx, cancel := context.WithDeadline(context.Background(), e)
+	defer cancel()
+	_, err := (*cli).Commit(ctx, &req)
 	if err != nil {
 		fmt.Println("commit error:", err)
 		return
@@ -67,7 +69,9 @@ func commit(cli *twopcserver.TwoPhaseCommitServiceClient, id int, amount int, uu
 func abort(cli *twopcserver.TwoPhaseCommitServiceClient, id int, amount int, uuid string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	req := twopcserver.AbortRequest{AccountId: int32(id), Uuid: uuid}
-	_, err := (*cli).Abort(context.Background(), &req)
+	ctx, cancel := context.WithDeadline(context.Background(), e)
+	defer cancel()
+	_, err := (*cli).Abort(ctx, &req)
 	if err != nil {
 		fmt.Println("abort error:", err)
 		return
@@ -78,23 +82,23 @@ func txn(giver_cli *twopcserver.TwoPhaseCommitServiceClient, receiver_cli *twopc
 	defer wg.Done()
 	n := time.Now()
 	uuid := uuid.New().String()
-	ch := make(chan bool, 2)
-	defer close(ch)
 	inner_wg := &sync.WaitGroup{}
-	inner_wg.Add(2)
-	go preCommit(giver_cli, gid, -amount, uuid, inner_wg, &ch)
-	go preCommit(receiver_cli, rid, amount, uuid, inner_wg, &ch)
-	inner_wg.Wait()
-	inner_wg.Add(2)
-	if (<-ch) && (<-ch) {
+	g := preCommit(giver_cli, gid, amount, uuid)
+	r := preCommit(receiver_cli, rid, amount, uuid)
+	if g && r {
 		//commit
-		// fmt.Println("commit")
+		inner_wg.Add(2)
 		go commit(giver_cli, gid, amount, uuid, inner_wg)
 		go commit(receiver_cli, rid, amount, uuid, inner_wg)
-	} else {
-		//abort
-		// fmt.Println("abort")
-		go abort(giver_cli, gid, amount, uuid, inner_wg)
+	} else if !g && !r {
+		return
+	} else if g {
+		fmt.Println("abort g", g)
+		inner_wg.Add(1)
+		go abort(giver_cli, rid, amount, uuid, inner_wg)
+	} else if r {
+		fmt.Println("abort r", r)
+		inner_wg.Add(1)
 		go abort(receiver_cli, rid, amount, uuid, inner_wg)
 	}
 	inner_wg.Wait()
@@ -122,6 +126,7 @@ func Test(lim int) {
 	}
 	// fin := time.Now()
 	wg.Wait()
+	fmt.Println(len(AVG))
 	logger.Println(lim, "rps: ", float64(cnt)/time.Minute.Seconds())
 	logger.Println(lim, "tps: ", float64(len(AVG))/time.Minute.Seconds())
 	sum := 0.0
@@ -132,8 +137,8 @@ func Test(lim int) {
 			max = v
 		}
 	}
-	logger.Println(lim, "max: ", max)
-	logger.Println(lim, "avg: ", sum/float64(len(AVG)))
+	// logger.Println(lim, "max: ", max)
+	logger.Println(lim, "avg: ", sum/float64(len(AVG)), "\n")
 }
 
 var AVG []float64
